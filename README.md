@@ -2,6 +2,26 @@
 
 A production-ready REST API for a vinyl record store built with [zerohttp](https://github.com/alexferl/zerohttp). This example demonstrates clean architecture patterns, JWT authentication, MongoDB persistence, Redis caching, OpenTelemetry tracing and more.
 
+## Table of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [API Endpoints](#api-endpoints)
+  - [Authentication](#authentication)
+  - [Users](#users)
+  - [Records](#records-vinyl-inventory)
+  - [Orders](#orders)
+  - [Inventory Management](#inventory-management)
+  - [Metrics (Prometheus)](#metrics-prometheus)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+  - [HTTP Headers](#http-headers)
+- [Configuration](#configuration)
+  - [Rate Limiting](#rate-limiting)
+- [Testing](#testing)
+- [License](#license)
+
 ## Features
 
 - **RESTful API** - Clean resource-oriented endpoints for users, records, orders, and inventory
@@ -67,10 +87,10 @@ A production-ready REST API for a vinyl record store built with [zerohttp](https
 | POST   | `/orders/{id}/cancel` | Order Owner          | Cancel pending order |
 
 ### Inventory Management
-| Method | Endpoint                  | Auth  | Description           |
-|--------|---------------------------|-------|-----------------------|
-| GET    | `/inventory`              | Admin | List inventory status |
-| POST   | `/inventory/{id}/restock` | Admin | Restock a record      |
+| Method | Endpoint                         | Auth  | Description           |
+|--------|----------------------------------|-------|-----------------------|
+| GET    | `/inventory`                     | -     | List inventory status |
+| POST   | `/inventory/{record_id}/restock` | Admin | Restock a record      |
 
 ### Health & Observability
 | Method | Endpoint    | Description                |
@@ -78,7 +98,32 @@ A production-ready REST API for a vinyl record store built with [zerohttp](https
 | GET    | `/livez`    | Kubernetes liveness probe  |
 | GET    | `/readyz`   | Kubernetes readiness probe |
 | GET    | `/startupz` | Kubernetes startup probe   |
-| GET    | `/metrics`  | Prometheus metrics         |
+
+### Metrics (Prometheus)
+
+Prometheus metrics are exposed on a dedicated server at `localhost:9090/metrics` by default. This separate port prevents internal metrics from being exposed to the public internet.
+
+| Endpoint     | Address                  | Description           |
+|--------------|--------------------------|-----------------------|
+| `/metrics`   | `http://localhost:9090`  | Prometheus metrics    |
+
+**Accessing metrics:**
+```bash
+# Fetch metrics locally
+curl http://localhost:9090/metrics
+
+# View with Prometheus (configure scrape target)
+# Add to prometheus.yml:
+#   - job_name: 'vinyl-store-api'
+#     static_configs:
+#       - targets: ['localhost:9090']
+```
+
+**Note:** The following paths are excluded from metrics collection:
+- `/livez`, `/readyz`, `/startupz` (health checks)
+- `/metrics` (metrics endpoint itself)
+
+Dynamic paths are normalized for metric labels (e.g., `/users/123` -> `/users/{id}`).
 
 ### Profiling (pprof)
 
@@ -138,6 +183,51 @@ go tool pprof -http=:8081 heap.out
      -d '{"email":"user@example.com","name":"User","password":"securepassword123"}'
    ```
 
+### HTTP Headers
+
+The API supports standard HTTP content negotiation headers:
+
+| Header            | Description                                     | Example                              |
+|-------------------|-------------------------------------------------|--------------------------------------|
+| `Accept`          | Response format (see Content Negotiation below) | `application/vnd.vinylstore.v1+json` |
+| `Accept-Encoding` | Compression (gzip supported)                    | `gzip`                               |
+| `Content-Type`    | Request body format                             | `application/json`                   |
+| `Idempotency-Key` | Idempotency key for POST requests (orders)      | `unique-key-123`                     |
+
+**Content Negotiation:**
+
+The API supports content negotiation via the `Accept` header:
+
+| Accept Header Value                  | Response Content-Type                | X-API-Version Header                       |
+|--------------------------------------|--------------------------------------|--------------------------------------------|
+| (none or `*/*`)                      | `application/vnd.vinylstore.v1+json` | `vinylstore.v1`                            |
+| `application/vnd.vinylstore.v1+json` | `application/vnd.vinylstore.v1+json` | `vinylstore.v1`                            |
+| `application/json`                   | `application/json`                   | `vinylstore.v1`                            |
+
+The `X-API-Version` response header indicates the API version:
+- Vendor media types (`application/vnd.*`) are shortened by stripping the `application/vnd.` prefix and `+json` suffix
+- `application/vnd.vinylstore.v1+json` -> `vinylstore.v1`
+- `application/json` defaults to the vendor type `application/vnd.vinylstore.v1+json`
+
+**Examples:**
+
+Default response (no Accept header):
+```bash
+$ curl -I http://localhost:8080/
+X-API-Version: vinylstore.v1
+```
+
+Request standard JSON:
+```bash
+$ curl -I -H "Accept: application/json" http://localhost:8080/
+X-API-Version: vinylstore.v1
+```
+
+With gzip compression:
+```bash
+curl -H "Accept-Encoding: gzip" http://localhost:8080/records | gunzip
+```
+
 ### Docker Compose Services
 
 The `docker-compose.yml` includes:
@@ -183,10 +273,10 @@ The application looks for config files in the following locations:
 
 ### MongoDB Settings
 
-| Flag               | Environment              | Default                     | Description             |
-|--------------------|--------------------------|-----------------------------|-------------------------|
-| `--mongo-uri`      | `VINYL_MONGO_URI`        | `mongodb://localhost:27017` | MongoDB connection URI  |
-| `--mongo-database` | `VINYL_MONGO_DATABASE`   | `vinylstore`                | MongoDB database name   |
+| Flag               | Environment            | Default                     | Description            |
+|--------------------|------------------------|-----------------------------|------------------------|
+| `--mongo-uri`      | `VINYL_MONGO_URI`      | `mongodb://localhost:27017` | MongoDB connection URI |
+| `--mongo-database` | `VINYL_MONGO_DATABASE` | `vinylstore`                | MongoDB database name  |
 
 ### Redis Settings
 
@@ -224,11 +314,11 @@ The application looks for config files in the following locations:
 
 Tiered rate limiting is enabled by default with three tiers:
 
-| Tier            | Default | Keyed By     | Paths                          |
-|-----------------|---------|--------------|--------------------------------|
-| Public          | 30/1m   | IP address   | `/records*`, `/inventory`      |
-| Auth Endpoints  | 5/1m    | IP address   | `/auth/login`, `/auth/refresh` |
-| Authenticated   | 100/1m  | JWT subject  | `/orders*`, `/auth/logout`     |
+| Tier            | Default | Keyed By     | Paths                               |
+|-----------------|---------|--------------|-------------------------------------|
+| Public          | 30/1m   | IP address   | `/records*`, `/inventory`, `/users` |
+| Auth Endpoints  | 5/1m    | IP address   | `/auth/login`, `/auth/refresh`      |
+| Authenticated   | 100/1m  | JWT subject  | `/orders*`, `/auth/logout`          |
 
 | Flag                          | Environment                          | Default  | Description                          |
 |-------------------------------|--------------------------------------|----------|--------------------------------------|
