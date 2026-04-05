@@ -1,0 +1,23 @@
+# Ignore everything
+*
+
+# But not these files...
+!.dockerignore
+!.editorconfig
+!.github/**
+!/.gitignore
+!.golangci.yml
+!.mockery.yaml
+!.pre-commit-config.yaml
+
+!*.go
+!go.sum
+!go.mod
+
+!Dockerfile
+!LICENSE
+!Makefile
+!README.md
+
+# ...even if they are in subdirectories
+!*/

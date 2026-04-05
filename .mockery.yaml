@@ -1,0 +1,16 @@
+all: false
+with-expecter: true
+dir: .
+outpkg: mocks
+resolve-type-alias: false
+disable-version-string: true
+issue-845-fix: true
+packages:
+  github.com/alexferl/zerohttp-example/store:
+    config:
+      dir: mocks
+    interfaces:
+      Store:
+      UserStore:
+      RecordStore:
+      OrderStore:
