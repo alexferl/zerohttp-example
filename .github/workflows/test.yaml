@@ -24,10 +24,66 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Run Tests
-        run: go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=1 -coverprofile=coverage.txt -covermode=atomic -shuffle=on
+        run: go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=1 -coverprofile=coverage-unit.txt -covermode=atomic -shuffle=on
+
+      - name: Upload unit coverage
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26.x' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage-unit.txt
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+
+      - name: Run Integration Tests
+        run: go run gotest.tools/gotestsum@latest -f testname -- ./... -tags=integration -race -count=1 -coverprofile=coverage-integration.txt -covermode=atomic -shuffle=on -timeout=20m
+
+      - name: Upload integration coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage-integration.txt
+
+  coverage:
+    needs: [unit, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+
+      - name: Download unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-unit
+
+      - name: Download integration coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-integration
+
+      - name: Merge Coverage
+        run: |
+          go install github.com/wadey/gocovmerge@latest
+          gocovmerge coverage-unit.txt coverage-integration.txt > coverage.txt
+
+      - name: Filter mocks from coverage
+        run: grep -v '/mocks/' coverage.txt > coverage.filtered.txt && mv coverage.filtered.txt coverage.txt
 
       - name: Upload to Coveralls
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26.x' }}
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
