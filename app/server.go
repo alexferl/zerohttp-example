@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	zh "github.com/alexferl/zerohttp"
@@ -26,6 +27,31 @@ import (
 	"github.com/alexferl/zerohttp-example/handlers"
 	"github.com/alexferl/zerohttp-example/store"
 )
+
+// apiVersionHeader is the response header name for API version info.
+const apiVersionHeader = "X-API-Version"
+
+// defaultMediaType is the default vendor media type for API versioning.
+const defaultMediaType = "application/vnd.vinylstore.v1+json"
+
+// apiVersionFunc transforms the negotiated media type into the API version header value.
+// For vendor types: strips "application/vnd." prefix and "+json" suffix.
+// For application/json: returns the default vendor type.
+//
+//	"application/vnd.vinylstore.v1+json" -> "vinylstore.v1"
+//	"application/json"                   -> "vinylstore.v1"
+func apiVersionFunc(mediaType string) string {
+	// Treat application/json as the default vendor type for version extraction
+	if mediaType == "application/json" {
+		mediaType = defaultMediaType
+	}
+	s := strings.TrimPrefix(mediaType, "application/vnd.")
+	if s == mediaType {
+		return mediaType
+	}
+	s, _, _ = strings.Cut(s, "+")
+	return s
+}
 
 func setupRoutes(app *zh.Server, h *handlers.Handler, jwtCfg jwtauth.Config, idempotencyCfg idempotency.Config, cfg *config.Config, redisClient *redis.Client) {
 	// Public routes
@@ -167,12 +193,11 @@ func setupMiddleware(cfg *config.Config, redisClient *redis.Client, server *zh.S
 		mediatype.New(mediatype.Config{
 			AllowedTypes: []string{
 				"application/json",
-				"application/vnd.vinylstore.v1+json",
-				"application/vnd.vinylstore.v2+json",
+				defaultMediaType,
 			},
-			DefaultType:        "application/vnd.vinylstore.v1+json",
-			ResponseTypeHeader: "X-Media-Type",
-			ResponseTypeFunc:   mediatype.VendorShortType,
+			DefaultType:        defaultMediaType,
+			ResponseTypeHeader: apiVersionHeader,
+			ResponseTypeFunc:   apiVersionFunc,
 		}),
 	)
 
