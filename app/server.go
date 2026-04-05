@@ -41,7 +41,7 @@ func setupRoutes(app *zh.Server, h *handlers.Handler, jwtCfg jwtauth.Config, ide
 	app.GET("/records/{id}", zh.HandlerFunc(h.GetRecord))
 	app.GET("/inventory", zh.HandlerFunc(h.ListInventory))
 
-	// Token refresh (public but validates refresh token)
+	// Token refresh (public but validates refresh token) - rate limited via auth endpoints tier
 	app.POST("/auth/refresh", jwtauth.RefreshTokenHandler(jwtCfg))
 
 	// Protected routes group - JWT middleware only applies to routes inside
@@ -248,7 +248,7 @@ func setupTieredRateLimit(cfg *config.Config, redisClient *redis.Client, server 
 			Rate:          rate,
 			Window:        window,
 			KeyExtractor:  ratelimit.IPKeyExtractor(),
-			IncludedPaths: []string{"/auth/login", "/auth/logout"},
+			IncludedPaths: []string{"/auth/login", "/auth/refresh"},
 		}
 		middlewares = append(middlewares, ratelimit.New(loginConfig))
 		server.Logger().Info("Rate limiting: auth endpoints tier enabled",

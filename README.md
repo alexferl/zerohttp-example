@@ -67,10 +67,10 @@ A production-ready REST API for a vinyl record store built with [zerohttp](https
 | POST   | `/orders/{id}/cancel` | Order Owner          | Cancel pending order |
 
 ### Inventory Management
-| Method | Endpoint                  | Auth  | Description           |
-|--------|---------------------------|-------|-----------------------|
-| GET    | `/inventory`              | Admin | List inventory status |
-| POST   | `/inventory/{id}/restock` | Admin | Restock a record      |
+| Method | Endpoint                         | Auth  | Description           |
+|--------|----------------------------------|-------|-----------------------|
+| GET    | `/inventory`                     | -     | List inventory status |
+| POST   | `/inventory/{record_id}/restock` | Admin | Restock a record      |
 
 ### Health & Observability
 | Method | Endpoint    | Description                |
@@ -78,7 +78,32 @@ A production-ready REST API for a vinyl record store built with [zerohttp](https
 | GET    | `/livez`    | Kubernetes liveness probe  |
 | GET    | `/readyz`   | Kubernetes readiness probe |
 | GET    | `/startupz` | Kubernetes startup probe   |
-| GET    | `/metrics`  | Prometheus metrics         |
+
+### Metrics (Prometheus)
+
+Prometheus metrics are exposed on a dedicated server at `localhost:9090/metrics` by default. This separate port prevents internal metrics from being exposed to the public internet.
+
+| Endpoint     | Address                  | Description           |
+|--------------|--------------------------|-----------------------|
+| `/metrics`   | `http://localhost:9090`  | Prometheus metrics    |
+
+**Accessing metrics:**
+```bash
+# Fetch metrics locally
+curl http://localhost:9090/metrics
+
+# View with Prometheus (configure scrape target)
+# Add to prometheus.yml:
+#   - job_name: 'vinyl-store-api'
+#     static_configs:
+#       - targets: ['localhost:9090']
+```
+
+**Note:** The following paths are excluded from metrics collection:
+- `/livez`, `/readyz`, `/startupz` (health checks)
+- `/metrics` (metrics endpoint itself)
+
+Dynamic paths are normalized for metric labels (e.g., `/users/123` → `/users/{id}`).
 
 ### Profiling (pprof)
 
@@ -183,10 +208,10 @@ The application looks for config files in the following locations:
 
 ### MongoDB Settings
 
-| Flag               | Environment              | Default                     | Description             |
-|--------------------|--------------------------|-----------------------------|-------------------------|
-| `--mongo-uri`      | `VINYL_MONGO_URI`        | `mongodb://localhost:27017` | MongoDB connection URI  |
-| `--mongo-database` | `VINYL_MONGO_DATABASE`   | `vinylstore`                | MongoDB database name   |
+| Flag               | Environment            | Default                     | Description            |
+|--------------------|------------------------|-----------------------------|------------------------|
+| `--mongo-uri`      | `VINYL_MONGO_URI`      | `mongodb://localhost:27017` | MongoDB connection URI |
+| `--mongo-database` | `VINYL_MONGO_DATABASE` | `vinylstore`                | MongoDB database name  |
 
 ### Redis Settings
 
@@ -224,11 +249,11 @@ The application looks for config files in the following locations:
 
 Tiered rate limiting is enabled by default with three tiers:
 
-| Tier            | Default | Keyed By     | Paths                          |
-|-----------------|---------|--------------|--------------------------------|
-| Public          | 30/1m   | IP address   | `/records*`, `/inventory`      |
-| Auth Endpoints  | 5/1m    | IP address   | `/auth/login`, `/auth/refresh` |
-| Authenticated   | 100/1m  | JWT subject  | `/orders*`, `/auth/logout`     |
+| Tier            | Default | Keyed By     | Paths                               |
+|-----------------|---------|--------------|-------------------------------------|
+| Public          | 30/1m   | IP address   | `/records*`, `/inventory`, `/users` |
+| Auth Endpoints  | 5/1m    | IP address   | `/auth/login`, `/auth/refresh`      |
+| Authenticated   | 100/1m  | JWT subject  | `/orders*`, `/auth/logout`          |
 
 | Flag                          | Environment                          | Default  | Description                          |
 |-------------------------------|--------------------------------------|----------|--------------------------------------|

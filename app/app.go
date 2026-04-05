@@ -11,7 +11,9 @@ import (
 
 	zh "github.com/alexferl/zerohttp"
 	zctracer "github.com/alexferl/zerohttp-contrib/middleware/tracer"
+	zconfig "github.com/alexferl/zerohttp/config"
 	zl "github.com/alexferl/zerohttp/log"
+	"github.com/alexferl/zerohttp/metrics"
 	"github.com/alexferl/zerohttp/middleware/securityheaders"
 	"github.com/alexferl/zerohttp/middleware/tracer"
 	"github.com/alexferl/zerohttp/pagination"
@@ -94,6 +96,11 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	appCfg.Tracer = tracer.Config{TracerField: tracerImpl}
+	appCfg.Metrics = metrics.Config{
+		Enabled:       zconfig.Bool(true),
+		Endpoint:      "/metrics",
+		ExcludedPaths: []string{"/livez", "/readyz", "/startupz", "/metrics"},
+	}
 	appCfg.Lifecycle = zh.LifecycleConfig{
 		PostStartupHooks: []zh.StartupHookConfig{
 			{
