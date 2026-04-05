@@ -8,6 +8,7 @@ import (
 
 	"github.com/alexferl/zerohttp/middleware/jwtauth"
 	"github.com/alexferl/zerohttp/zhtest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/alexferl/zerohttp-example/mocks"
@@ -77,6 +78,25 @@ func TestLogin_Success(t *testing.T) {
 	zhtest.AssertNotEmpty(t, resp.RefreshToken)
 	zhtest.AssertEqual(t, "Bearer", resp.TokenType)
 	zhtest.AssertEqual(t, 900, resp.ExpiresIn) // 15 minutes = 900 seconds
+}
+
+func TestLogin_GetUserByEmailError(t *testing.T) {
+	h, mockStore, _ := setupHandlerWithUser(t)
+
+	// Override mock to return an error
+	mockStore.ExpectedCalls = nil
+	mockStore.On("GetUserByEmail", mock.Anything, "test@example.com").Return(nil, false, assert.AnError)
+
+	req := zhtest.NewRequest(http.MethodPost, "/auth/login").
+		WithJSON(map[string]string{
+			"email":    "test@example.com",
+			"password": "password123",
+		}).
+		Build()
+	w := httptest.NewRecorder()
+
+	err := h.Login(w, req)
+	zhtest.AssertError(t, err)
 }
 
 func TestLogin_InvalidCredentials_WrongPassword(t *testing.T) {

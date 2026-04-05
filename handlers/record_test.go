@@ -7,6 +7,7 @@ import (
 
 	"github.com/alexferl/zerohttp/httpx"
 	"github.com/alexferl/zerohttp/zhtest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/alexferl/zerohttp-example/models"
@@ -324,7 +325,7 @@ func TestListRecords_Success(t *testing.T) {
 		}),
 	}
 
-	mockStore.On("GetFilteredRecords", mock.Anything, store.RecordFilter{BaseFilter: store.BaseFilter{Page: 1, PerPage: 20}}).Return(records, 3, nil)
+	mockStore.On("GetFilteredRecords", mock.Anything, store.RecordFilter{BaseFilter: store.BaseFilter{Page: 1, PerPage: 25}}).Return(records, 3, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/records", nil)
 	w := httptest.NewRecorder()
@@ -354,7 +355,7 @@ func TestListRecords_WithFilters(t *testing.T) {
 		Stock:     3,
 	})
 
-	mockStore.On("GetFilteredRecords", mock.Anything, store.RecordFilter{BaseFilter: store.BaseFilter{Page: 1, PerPage: 20}, Genres: []string{"jazz"}}).Return([]*models.Record{jazzRecord}, 1, nil)
+	mockStore.On("GetFilteredRecords", mock.Anything, store.RecordFilter{BaseFilter: store.BaseFilter{Page: 1, PerPage: 25}, Genres: []string{"jazz"}}).Return([]*models.Record{jazzRecord}, 1, nil)
 
 	// Test filtering by genre
 	req := httptest.NewRequest(http.MethodGet, "/records?genre=jazz", nil)
@@ -408,7 +409,7 @@ func TestListRecords_WithLimit(t *testing.T) {
 func TestListRecords_Empty(t *testing.T) {
 	h, mockStore := setupHandler(t)
 
-	mockStore.On("GetFilteredRecords", mock.Anything, store.RecordFilter{BaseFilter: store.BaseFilter{Page: 1, PerPage: 20}}).Return([]*models.Record{}, 0, nil)
+	mockStore.On("GetFilteredRecords", mock.Anything, store.RecordFilter{BaseFilter: store.BaseFilter{Page: 1, PerPage: 25}}).Return([]*models.Record{}, 0, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/records", nil)
 	w := httptest.NewRecorder()
@@ -565,6 +566,51 @@ func TestUpdateRecord_UpdateStockToZero(t *testing.T) {
 	zhtest.AssertWith(t, w).JSON(&resp)
 
 	zhtest.AssertEqual(t, 0, resp.Stock)
+}
+
+func TestUpdateRecord_GetRecordError(t *testing.T) {
+	h, mockStore := setupHandler(t)
+
+	mockStore.On("GetRecord", mock.Anything, "record-id").Return(nil, false, assert.AnError)
+
+	req := zhtest.NewRequest(http.MethodPatch, "/records/record-id").
+		WithJSON(map[string]any{
+			"title": "Updated Title",
+		}).
+		Build()
+	req.SetPathValue("id", "record-id")
+	w := httptest.NewRecorder()
+
+	err := h.UpdateRecord(w, req)
+	zhtest.AssertError(t, err)
+}
+
+func TestUpdateRecord_SaveRecordError(t *testing.T) {
+	h, mockStore := setupHandler(t)
+
+	record := models.NewRecord(models.RecordParams{
+		Title:     "Test Record",
+		Artist:    "Test Artist",
+		Format:    models.FormatLP,
+		Genre:     models.GenreRock,
+		Condition: models.ConditionNM,
+		Price:     19.99,
+		Stock:     10,
+	})
+
+	mockStore.On("GetRecord", mock.Anything, record.ID).Return(record, true, nil)
+	mockStore.On("SaveRecord", mock.Anything, mock.AnythingOfType("*models.Record")).Return(assert.AnError)
+
+	req := zhtest.NewRequest(http.MethodPatch, "/records/"+record.ID).
+		WithJSON(map[string]any{
+			"title": "Updated Title",
+		}).
+		Build()
+	req.SetPathValue("id", record.ID)
+	w := httptest.NewRecorder()
+
+	err := h.UpdateRecord(w, req)
+	zhtest.AssertError(t, err)
 }
 
 func TestArchiveRecord_Success(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/alexferl/zerohttp/httpx"
 	"github.com/alexferl/zerohttp/zhtest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/alexferl/zerohttp-example/models"
@@ -159,6 +160,43 @@ func TestCreateUser_Validation_MissingFields(t *testing.T) {
 
 	req := zhtest.NewRequest(http.MethodPost, "/users").
 		WithJSON(map[string]any{}).
+		Build()
+	w := httptest.NewRecorder()
+
+	err := h.CreateUser(w, req)
+	zhtest.AssertError(t, err)
+}
+
+func TestCreateUser_GetUserByEmailError(t *testing.T) {
+	h, mockStore := setupHandler(t)
+
+	mockStore.On("GetUserByEmail", mock.Anything, "newuser@example.com").Return(nil, false, assert.AnError)
+
+	req := zhtest.NewRequest(http.MethodPost, "/users").
+		WithJSON(map[string]any{
+			"email":    "newuser@example.com",
+			"name":     "New User",
+			"password": "securepassword123",
+		}).
+		Build()
+	w := httptest.NewRecorder()
+
+	err := h.CreateUser(w, req)
+	zhtest.AssertError(t, err)
+}
+
+func TestCreateUser_SaveUserError(t *testing.T) {
+	h, mockStore := setupHandler(t)
+
+	mockStore.On("GetUserByEmail", mock.Anything, "newuser@example.com").Return(nil, false, nil)
+	mockStore.On("SaveUser", mock.Anything, mock.AnythingOfType("*models.User")).Return(assert.AnError)
+
+	req := zhtest.NewRequest(http.MethodPost, "/users").
+		WithJSON(map[string]any{
+			"email":    "newuser@example.com",
+			"name":     "New User",
+			"password": "securepassword123",
+		}).
 		Build()
 	w := httptest.NewRecorder()
 
