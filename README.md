@@ -1,4 +1,4 @@
-# zerohttp-example [![Go Reference](https://pkg.go.dev/badge/github.com/alexferl/zerohttp-example.svg)](https://pkg.go.dev/github.com/alexferl/zerohttp-example) [![Go Report Card](https://goreportcard.com/badge/github.com/alexferl/zerohttp-example)](https://goreportcard.com/report/github.com/alexferl/zerohttp-example) [![Coverage Status](https://coveralls.io/repos/github/alexferl/zerohttp-example/badge.svg?branch=master)](https://coveralls.io/github/alexferl/zerohttp-example?branch=master)
+# zerohttp-example [![Go Report Card](https://goreportcard.com/badge/github.com/alexferl/zerohttp-example)](https://goreportcard.com/report/github.com/alexferl/zerohttp-example) [![Coverage Status](https://coveralls.io/repos/github/alexferl/zerohttp-example/badge.svg?branch=master)](https://coveralls.io/github/alexferl/zerohttp-example?branch=master)
 
 A production-ready REST API for a vinyl record store built with [zerohttp](https://github.com/alexferl/zerohttp). This example demonstrates clean architecture patterns, JWT authentication, MongoDB persistence, Redis caching, OpenTelemetry tracing and more.
 
