@@ -43,6 +43,7 @@ func RequireAdmin() func(http.Handler) http.Handler {
 
 // RequireOwner validates resource ownership matches JWT sub.
 // Use this when the route has a {id} parameter that should match the user ID.
+// Supports "me" as an alias for the authenticated user's ID.
 func RequireOwner() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +53,17 @@ func RequireOwner() func(http.Handler) http.Handler {
 
 			// If user is admin, allow access to any resource
 			if claims.HasScope("admin") {
+				// Rewrite "me" to actual user ID even for admins (consistency)
+				if resourceID == "me" {
+					r.SetPathValue("id", userID)
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Handle "me" alias - rewrite to actual user ID
+			if resourceID == "me" {
+				r.SetPathValue("id", userID)
 				next.ServeHTTP(w, r)
 				return
 			}

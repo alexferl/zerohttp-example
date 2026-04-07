@@ -72,11 +72,12 @@ func TestRequireAdmin(t *testing.T) {
 
 func TestRequireOwner(t *testing.T) {
 	tests := []struct {
-		name           string
-		claims         map[string]any
-		resourceID     string
-		wantStatusCode int
-		wantNextCalled bool
+		name            string
+		claims          map[string]any
+		resourceID      string
+		wantStatusCode  int
+		wantNextCalled  bool
+		wantRewrittenID string
 	}{
 		{
 			name:           "unauthenticated - no subject",
@@ -86,11 +87,12 @@ func TestRequireOwner(t *testing.T) {
 			wantNextCalled: false,
 		},
 		{
-			name:           "owner matches resource ID - access granted",
-			claims:         map[string]any{"sub": "user123"},
-			resourceID:     "user123",
-			wantStatusCode: http.StatusOK,
-			wantNextCalled: true,
+			name:            "owner matches resource ID - access granted",
+			claims:          map[string]any{"sub": "user123"},
+			resourceID:      "user123",
+			wantStatusCode:  http.StatusOK,
+			wantNextCalled:  true,
+			wantRewrittenID: "user123",
 		},
 		{
 			name:           "owner does not match - access denied",
@@ -100,11 +102,12 @@ func TestRequireOwner(t *testing.T) {
 			wantNextCalled: false,
 		},
 		{
-			name:           "non-owner but admin - access granted",
-			claims:         map[string]any{"sub": "admin123", "scope": "read admin"},
-			resourceID:     "user456",
-			wantStatusCode: http.StatusOK,
-			wantNextCalled: true,
+			name:            "non-owner but admin - access granted",
+			claims:          map[string]any{"sub": "admin123", "scope": "read admin"},
+			resourceID:      "user456",
+			wantStatusCode:  http.StatusOK,
+			wantNextCalled:  true,
+			wantRewrittenID: "user456",
 		},
 		{
 			name:           "empty resource ID with owner subject - passed to next handler",
@@ -113,6 +116,22 @@ func TestRequireOwner(t *testing.T) {
 			wantStatusCode: http.StatusOK,
 			wantNextCalled: true,
 		},
+		{
+			name:            "me alias - rewritten to user ID",
+			claims:          map[string]any{"sub": "user123"},
+			resourceID:      "me",
+			wantStatusCode:  http.StatusOK,
+			wantNextCalled:  true,
+			wantRewrittenID: "user123",
+		},
+		{
+			name:            "me alias with admin - rewritten to admin ID",
+			claims:          map[string]any{"sub": "admin123", "scope": "read admin"},
+			resourceID:      "me",
+			wantStatusCode:  http.StatusOK,
+			wantNextCalled:  true,
+			wantRewrittenID: "admin123",
+		},
 	}
 
 	for _, tt := range tests {
@@ -120,8 +139,10 @@ func TestRequireOwner(t *testing.T) {
 			middleware := RequireOwner()
 
 			nextCalled := false
+			var capturedID string
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextCalled = true
+				capturedID = r.PathValue("id")
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -139,6 +160,9 @@ func TestRequireOwner(t *testing.T) {
 
 			zhtest.AssertEqual(t, tt.wantStatusCode, w.Code)
 			zhtest.AssertEqual(t, tt.wantNextCalled, nextCalled)
+			if tt.wantRewrittenID != "" {
+				zhtest.AssertEqual(t, tt.wantRewrittenID, capturedID)
+			}
 		})
 	}
 }
