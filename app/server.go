@@ -67,8 +67,10 @@ func setupRoutes(app *zh.Server, h *handlers.Handler, jwtCfg jwtauth.Config, ide
 	app.GET("/records/{id}", zh.HandlerFunc(h.GetRecord))
 	app.GET("/inventory", zh.HandlerFunc(h.ListInventory))
 
-	// Token refresh (public but validates refresh token) - rate limited via auth endpoints tier
+	// Token refresh and logout (public but validate refresh token internally)
+	// These don't require a valid access token - they work with refresh tokens
 	app.POST("/auth/refresh", jwtauth.RefreshTokenHandler(jwtCfg))
+	app.POST("/auth/logout", jwtauth.LogoutTokenHandler(jwtCfg))
 
 	// Protected routes group - JWT middleware only applies to routes inside
 	app.Group(func(r zh.Router) {
@@ -76,8 +78,6 @@ func setupRoutes(app *zh.Server, h *handlers.Handler, jwtCfg jwtauth.Config, ide
 			jwtauth.New(jwtCfg),
 			setupAuthenticatedRateLimit(cfg, redisClient, app),
 		)
-
-		r.POST("/auth/logout", jwtauth.LogoutTokenHandler(jwtCfg))
 
 		// User routes (owner only)
 		r.Group(func(r2 zh.Router) {

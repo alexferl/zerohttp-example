@@ -150,11 +150,13 @@ func setupTestRoutes(zhServer *zh.Server, h *handlers.Handler, jwtCfg jwtauth.Co
 	// Token refresh
 	zhServer.POST("/auth/refresh", jwtauth.RefreshTokenHandler(jwtCfg))
 
+	// Public auth endpoints (don't require valid access token)
+	zhServer.POST("/auth/logout", jwtauth.LogoutTokenHandler(jwtCfg))
+
 	// Protected routes
 	zhServer.Group(func(r zh.Router) {
 		r.Use(jwtauth.New(jwtCfg))
 
-		r.POST("/auth/logout", jwtauth.LogoutTokenHandler(jwtCfg))
 		r.GET("/users/{id}", zh.HandlerFunc(h.GetUser))
 		r.PATCH("/users/{id}", zh.HandlerFunc(h.UpdateUser))
 		r.POST("/users/{id}/deactivate", zh.HandlerFunc(h.DeactivateUser))
